@@ -47,8 +47,6 @@ export class SeedService {
           email: 'superadmin@codewithmauricio.tech',
           phone: '+1234567890',
           password: 'superadmin123', 
-          isActive: true, 
-          isVerified: true,
           roleSlug: 'superadmin' 
         },
         { 
@@ -57,8 +55,6 @@ export class SeedService {
           email: 'usuario@codewithmauricio.tech',
           phone: '+9876543210',
           password: 'usuario123', 
-          isActive: true, 
-          isVerified: true,
           roleSlug: 'usuario' 
         },
       ];
