@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { SequelizeModule } from '@nestjs/sequelize';
 import { SyncService } from './sync.service';
+import { SeedModule } from '../modules/seeders/seeders.module';
 
 @Module({
   imports: [
@@ -23,7 +24,7 @@ import { SyncService } from './sync.service';
         synchronize: false,
       }),
     }),
-    
+    SeedModule,
   ],
   providers: [SyncService],
   exports: [SequelizeModule],
