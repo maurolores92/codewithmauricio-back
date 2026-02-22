@@ -31,18 +31,21 @@ async generatePost(dto: CreatePostDto) {
   };
 
   const prompt = `
-Crea un post para LinkedIn.
+Crea un post para LinkedIn escrito en PRIMERA PERSONA, como si yo (un desarrollador/profesional de tecnología) estuviera compartiendo mi experiencia, conocimiento o perspectiva personal.
 
 Tema: ${finalTopic}
 Tono: ${tone}
 Extensión: ${lengthGuide[length]}
 
-Estructura obligatoria:
-- Hook fuerte al inicio
-- Desarrollo claro
-- Cierre con reflexión o llamada a la acción
+Reglas obligatorias:
+- Escribe en primera persona (yo, mi, he aprendido, comparto, etc.)
+- Hook fuerte al inicio desde MI experiencia
+- Comparte conocimiento como si saliera de MI cabeza
+- Usa ejemplos o anécdotas personales cuando sea posible
+- Cierre con MI reflexión o llamada a la acción
 - Usa emojis estratégicamente
-- Párrafos cortos
+- Párrafos cortos y fáciles de leer
+- Evita sonar genérico o corporativo, hazlo personal y auténtico
 `;
 
   const content = await this.aiService.generateText(prompt);
