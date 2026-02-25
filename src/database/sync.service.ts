@@ -14,7 +14,7 @@ export class SyncService implements OnModuleInit {
   // alter: true - hace que la base de datos se actualice en caso de que existan cambios en las definiciones de las tablas.
 
   async onModuleInit() {
-    await this.sequelize.sync({ alter: true, force: false });
+    await this.sequelize.sync({ alter: true, force: true });
     
     // Ejecutar seeds automáticamente después de sincronizar
     try {
