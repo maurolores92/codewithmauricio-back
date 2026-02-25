@@ -14,22 +14,34 @@ export class UserRoleGuard implements CanActivate {
     const validRoles = this.reflector.get<string[]>('roles', context.getHandler());
     const request = context.switchToHttp().getRequest();
     const user = request.user;
-    const userRoles = user?.roles || [];
-    const storeId = user?.storeId;
 
-    // Si los roles tienen storeId, filtrar por la tienda actual
-    const filteredRoles = Array.isArray(userRoles) && userRoles.length > 0 && typeof userRoles[0] === 'object'
-      ? userRoles.filter((role: any) => role.storeId === storeId).map((role: any) => role.slug)
-      : userRoles;
+    console.log('[UserRoleGuard] Validating access:', {
+      requiredRoles: validRoles,
+      userIsAdmin: user?.isAdmin,
+      userRole: user?.role,
+      userId: user?.id
+    });
 
-    const canAccess = this.matchRoles(filteredRoles, validRoles);
-    
-    return canAccess;
-  }
-  private matchRoles(userRoles: string[], validRoles: string[]): boolean {
+    // Si no hay roles especificados, permitir acceso
     if (!validRoles || validRoles.length === 0) {
-      return true; // No roles specified, allow access
+      console.log('[UserRoleGuard] No roles required, allowing access');
+      return true;
     }
-    return userRoles.some(role => validRoles.includes(role));
+
+    // Si el usuario tiene isAdmin y los roles requeridos incluyen 'admin'
+    if (user?.isAdmin && validRoles.includes('admin')) {
+      console.log('[UserRoleGuard] User is admin, allowing access');
+      return true;
+    }
+
+    // Si el usuario tiene un rol específico que coincide con los roles requeridos
+    const userRole = user?.role;
+    if (userRole && validRoles.includes(userRole)) {
+      console.log('[UserRoleGuard] User role matches, allowing access');
+      return true;
+    }
+
+    console.log('[UserRoleGuard] Access denied');
+    return false;
   }
 }

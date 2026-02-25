@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
 import { RoleService } from './role.service';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
@@ -13,7 +13,10 @@ export class RoleController {
   }
 
   @Get()
-  findAll() {
+  findAll(@Query('includeSuperAdmin') includeSuperAdmin?: string) {
+    if (includeSuperAdmin === 'true') {
+      return this.roleService.findEditableRoles();
+    }
     return this.roleService.findAll();
   }
 

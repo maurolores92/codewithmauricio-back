@@ -13,4 +13,15 @@ export class RoleService extends CrudService<Role> {
   async findAll(): Promise<Role[]> {
     return this.roleModel.findAll({where: {slug: {[Op.ne]: 'superadmin'}}})
   }
+
+  async findEditableRoles(): Promise<Role[]> {
+    // Solo retorna roles que se pueden editar: aquellos que NO sean 'superadmin' o 'admin'
+    return this.roleModel.findAll({
+      where: {
+        slug: {
+          [Op.notIn]: ['superadmin', 'admin']
+        }
+      }
+    })
+  }
 }

@@ -12,13 +12,9 @@ import { Users } from "./users.model";
 export class UsersService extends CrudService<Users> {
    private readonly logger = new Logger(UsersService.name);
   constructor(
-    @InjectModel(Users) private readonly userModel: typeof Users,
-    private sequelize: Sequelize,
-  ) {
-    super(userModel);
-  }
+    @InjectModel(Users) private readonly userModel: typeof Users, private sequelize: Sequelize, ) { super(userModel); }
 
-  override async create(data: any): Promise<Users> {
+  override async create(data: any, createdByAdminId?: number): Promise<Users> {
     const transaction = await this.sequelize.transaction();
     try {
       const {roleId, password, ...userData} = data;
@@ -28,18 +24,18 @@ export class UsersService extends CrudService<Users> {
         throw new BadRequestException('El usuario ya existe');
       }
       
-      // Si no se proporciona roleId, buscar el rol "usuario" por defecto
-      let finalRoleId = roleId;
-      if (!finalRoleId) {
-        const defaultRole = await Role.findOne({where: {slug: 'usuario'}, transaction});
-        if (!defaultRole) {
-          throw new BadRequestException('No se encontró el rol por defecto');
-        }
-        finalRoleId = defaultRole.id;
-      } else {
-        const role = await Role.findByPk(finalRoleId, {transaction});
+      let finalRoleId = null;
+      let isAdmin = false;
+      
+      if (roleId) {
+        const role = await Role.findByPk(roleId, {transaction});
         if(!role) {
           throw new BadRequestException('El rol no es válido');
+        }
+        finalRoleId = roleId;
+        
+        if (role.slug === 'admin') {
+          isAdmin = true;
         }
       }
       
@@ -49,6 +45,8 @@ export class UsersService extends CrudService<Users> {
       const user = await this.userModel.create({
         ...userData,
         roleId: finalRoleId,
+        isAdmin: isAdmin, // true solo si el rol es admin
+        createdByAdminId: createdByAdminId || null, // Guardar el ID del admin que crea el usuario
         isActive: true, 
         isVerified: false
       }, {transaction});
@@ -56,7 +54,8 @@ export class UsersService extends CrudService<Users> {
       await transaction.commit();
 
       const createdUser = await this.userModel.findByPk(user.id, {
-        attributes: { exclude: ['password'] }
+        attributes: { exclude: ['password'] },
+        include: [{ model: Role, as: 'role' }, { model: Role, as: 'customRoles' }]
       });
       
       return createdUser!;
@@ -68,10 +67,17 @@ export class UsersService extends CrudService<Users> {
     }
   }
 
-  override async findAll(): Promise<Users[]> {
+  override async findAll(adminId?: number): Promise<Users[]> {
+    const where: any = {};
+    
+    if (adminId) {
+      where.createdByAdminId = adminId;
+    }
+    
     const users = await this.userModel.findAll({
+      where,
       attributes: { exclude: ['password'] },
-      include: [{ model: Role }],
+      include: [{ model: Role, as: 'role' }],
     });
 
     return users;
@@ -105,6 +111,7 @@ export class UsersService extends CrudService<Users> {
       include: [
         {
           model: Role,
+          as: 'role',
           where: {slug: {[Op.ne]: 'superadmin'}},
         }
       ],
@@ -133,7 +140,7 @@ export class UsersService extends CrudService<Users> {
   async findOneByEmail(userEmail: string): Promise<any> {
     const user = await this.userModel.findOne({
       where: { email: userEmail },
-      include: [{ model: Role }],
+      include: [{ model: Role, as: 'role' }],
     });
 
     if (!user) {
@@ -146,6 +153,7 @@ export class UsersService extends CrudService<Users> {
       lastName: user.lastName,
       email: user.email,
       password: user.password,
+      isAdmin: user.isAdmin,
       role: user.role ? user.role.slug : null
     };
   }
@@ -171,12 +179,17 @@ export class UsersService extends CrudService<Users> {
     return { message: 'Contraseña actualizada exitosamente' };
   }
 
-  async updateUser(userId: number, updateData: any): Promise<Users> {
+  async updateUser(userId: number, updateData: any, adminId?: number): Promise<Users> {
     const transaction = await this.sequelize.transaction();
     try {
       const user = await this.userModel.findByPk(userId, {transaction});
       if (!user) {
         throw new NotFoundException(`Usuario con ID ${userId} no encontrado`);
+      }
+      
+      // Si se proporciona adminId, verificar que el usuario fue creado por ese admin
+      if (adminId && user.createdByAdminId !== adminId) {
+        throw new BadRequestException('No tienes permiso para editar este usuario');
       }
       
       const { password, ...allowedUpdates } = updateData;
@@ -207,9 +220,30 @@ export class UsersService extends CrudService<Users> {
     }
   }
 
+  async deleteUser(userId: number, adminId?: number): Promise<void> {
+    const transaction = await this.sequelize.transaction();
+    try {
+      const user = await this.userModel.findByPk(userId, {transaction});
+      if (!user) {
+        throw new NotFoundException(`Usuario con ID ${userId} no encontrado`);
+      }
+      
+      // Si se proporciona adminId, verificar que el usuario fue creado por ese admin
+      if (adminId && user.createdByAdminId !== adminId) {
+        throw new BadRequestException('No tienes permiso para eliminar este usuario');
+      }
+      
+      await user.destroy({transaction});
+      await transaction.commit();
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  }
+
   async getUserProfile(userId: number) {
     const userWithRole = await this.userModel.findByPk(userId, {
-      include: [{ model: Role }],
+      include: [{ model: Role, as: 'role' }, { model: Role, as: 'customRoles' }],
       attributes: { exclude: ['password'] }
     });
 
@@ -227,9 +261,143 @@ export class UsersService extends CrudService<Users> {
         lastName: userWithRole.lastName,
         email: userWithRole.email,
         role: roleSlug,
+        isAdmin: userWithRole.isAdmin,
+        customRoles: userWithRole.customRoles || [],
       },
       delivery: isDelivery,
     };
+  }
+
+  async createCustomRole(adminUserId: number, roleData: any): Promise<Role> {
+    const transaction = await this.sequelize.transaction();
+    try {
+      console.log('[createCustomRole] Input:', { adminUserId, roleData });
+      
+      // Verificar que el usuario sea admin
+      const admin = await this.userModel.findByPk(adminUserId, {transaction});
+      console.log('[createCustomRole] Admin found:', {
+        id: admin?.id,
+        email: admin?.email,
+        isAdmin: admin?.isAdmin
+      });
+      
+      if (!admin || !admin.isAdmin) {
+        throw new BadRequestException('Solo los usuarios admin pueden crear roles');
+      }
+
+      // Verificar que no exista un rol con el mismo slug para este admin
+      const existingRole = await Role.findOne({
+        where: { slug: roleData.slug, userId: adminUserId },
+        transaction
+      });
+      if (existingRole) {
+        throw new BadRequestException('Ya existe un rol con este slug');
+      }
+
+      const newRole = await Role.create({
+        ...roleData,
+        userId: adminUserId
+      }, {transaction});
+
+      await transaction.commit();
+      console.log('[createCustomRole] Role created successfully:', newRole.id);
+      return newRole;
+    } catch (error) {
+      await transaction.rollback();
+      console.error('[createCustomRole] Error:', error.message);
+      throw error;
+    }
+  }
+
+  async getUserCustomRoles(userId: number): Promise<Role[]> {
+    const roles = await Role.findAll({
+      where: { userId: userId }
+    });
+    return roles;
+  }
+
+  async getAllAvailableRoles(): Promise<Role[]> {
+    // Roles global (sin userId)
+    const globalRoles = await Role.findAll({
+      where: { userId: null }
+    });
+    return globalRoles;
+  }
+
+  async updateCustomRole(adminUserId: number, roleId: number, roleData: any): Promise<Role> {
+    const transaction = await this.sequelize.transaction();
+    try {
+      console.log('[updateCustomRole] Input:', { adminUserId, roleId, roleData });
+
+      // Buscar el rol
+      const role = await Role.findByPk(roleId, { transaction });
+      if (!role) {
+        throw new NotFoundException('Rol no encontrado');
+      }
+
+      // Verificar que el rol pertenezca al usuario
+      if (role.userId !== adminUserId) {
+        throw new BadRequestException('No tienes permiso para editar este rol');
+      }
+
+      // Si se está cambiando el slug, verificar que no exista otro rol con ese slug para este usuario
+      if (roleData.slug && roleData.slug !== role.slug) {
+        const existingRole = await Role.findOne({
+          where: { slug: roleData.slug, userId: adminUserId },
+          transaction
+        });
+        if (existingRole) {
+          throw new BadRequestException('Ya existe un rol con este slug');
+        }
+      }
+
+      await role.update(roleData, { transaction });
+      await transaction.commit();
+      
+      console.log('[updateCustomRole] Role updated successfully');
+      return role;
+    } catch (error) {
+      await transaction.rollback();
+      console.error('[updateCustomRole] Error:', error.message);
+      throw error;
+    }
+  }
+
+  async deleteCustomRole(adminUserId: number, roleId: number): Promise<void> {
+    const transaction = await this.sequelize.transaction();
+    try {
+      console.log('[deleteCustomRole] Input:', { adminUserId, roleId });
+
+      // Buscar el rol
+      const role = await Role.findByPk(roleId, { transaction });
+      if (!role) {
+        throw new NotFoundException('Rol no encontrado');
+      }
+
+      // Verificar que el rol pertenezca al usuario
+      if (role.userId !== adminUserId) {
+        throw new BadRequestException('No tienes permiso para eliminar este rol');
+      }
+
+      // Verificar que no haya usuarios con este rol
+      const usersWithRole = await this.userModel.count({
+        where: { roleId: roleId },
+        transaction
+      });
+      
+      if (usersWithRole > 0) {
+        throw new BadRequestException(`No se puede eliminar el rol porque hay ${usersWithRole} usuario(s) asignado(s)`);
+      }
+
+      await role.destroy({ transaction });
+      await transaction.commit();
+      
+      console.log('[deleteCustomRole] Role deleted successfully');
+    } catch (error) {
+      await transaction.rollback();
+      console.error('[deleteCustomRole] Error:', error.message);
+      throw error;
+    }
   }
 
 }

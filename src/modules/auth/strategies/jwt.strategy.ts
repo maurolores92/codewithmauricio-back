@@ -21,7 +21,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  async validate(data: JwtPayload): Promise<Users> {
+  async validate(data: JwtPayload): Promise<any> {
     console.log('[JWT-STRATEGY] validate() called with payload:', data);
     
     try {
@@ -29,7 +29,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       console.log('[JWT-STRATEGY] User found from email:', {
         id: user.id,
         email: user.email,
-        hasRole: !!user.role
+        isAdmin: user.isAdmin,
+        role: user.role
       });
       
       return user;

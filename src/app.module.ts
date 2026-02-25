@@ -9,6 +9,8 @@ import { WebsocketModule } from './common/socket/websocket.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { SeedModule } from './modules/seeders/seeders.module';
+import { PermissionModule } from './modules/permission/permission.module';
+import { RoleModule } from './modules/role/role.module';
 
 @Module({
   imports: [
@@ -22,6 +24,8 @@ import { SeedModule } from './modules/seeders/seeders.module';
     NotificationsModule,
     AuthModule,
     SeedModule,
+    PermissionModule,
+    RoleModule,
     
     // AiModule,
   ],

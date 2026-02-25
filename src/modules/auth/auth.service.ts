@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, UnauthorizedException } from "@nestjs/common";
 import { UsersService } from "../users/users.service";
+import { PermissionService } from "../permission/permission.service";
 import { JwtService } from "@nestjs/jwt";
 import * as bcrypt from "bcrypt";
 import { SignInAuthDto } from "./dto/signIn-auth.dto";
@@ -11,11 +12,11 @@ import { Users } from "../users/users.model";
 export class AuthService {
   constructor(
     private usersService: UsersService,
+    private permissionService: PermissionService,
     private jwtService: JwtService,
   ) { }
   
   async signIn(data: SignInAuthDto): Promise<any> {
-    console.log('[AUTH-SERVICE] signIn called with:', { email: data.email });
     
     const user = await this.usersService.findOneByEmail(data.email);
     
@@ -24,21 +25,11 @@ export class AuthService {
       throw new UnauthorizedException('Usuario no encontrado');
     }
 
-    console.log('[AUTH-SERVICE] User found:', {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      hasRole: !!user.role,
-      role: user.role
-    });
-
     const compare = await bcrypt.compare(data.password, user.password);
     if (!compare) {
       console.error('[AUTH-SERVICE] Password mismatch for:', data.email);
       throw new UnauthorizedException('Contraseña incorrecta');
     }
-
-    console.log('[AUTH-SERVICE] Password verified successfully');
 
     // Actualizar último login
     const userInstance = await Users.findByPk(user.id);
@@ -53,9 +44,10 @@ export class AuthService {
       email: user.email,
     };
     
-    console.log('[AUTH-SERVICE] JWT payload:', payload);
-    
     const accessToken = this.jwtService.sign(payload, { expiresIn: '24h' });
+    
+    // Obtener permisos del usuario
+    const permissions = await this.permissionService.getUserPermissions(user.id);
     
     const response = {
       accessToken,
@@ -64,14 +56,11 @@ export class AuthService {
         name: user.name,
         lastName: user.lastName,
         email: user.email,
-        role: user.role || 'usuario',
+        role: user.role || null,
+        isAdmin: user.isAdmin || false,
+        permissions: permissions || []
       }
     };
-    
-    console.log('[AUTH-SERVICE] Sending login response:', {
-      hasToken: !!response.accessToken,
-      user: response.user
-    });
     
     return response;
   }
@@ -83,23 +72,21 @@ export class AuthService {
         throw new BadRequestException("Ya existe un usuario con ese email");
       }
       
-      // Buscar el rol "usuario" por defecto
-      const userRole = await Role.findOne({ where: { slug: 'usuario' } });
-      if (!userRole) {
-        throw new BadRequestException("No se encontró el rol de usuario");
-      }
+      // Buscar el rol "admin" por defecto (si existe)
+      const userRole = await Role.findOne({ where: { slug: 'admin', userId: null } });
       
       // Hash de la contraseña
       const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
       
-      // Crear nuevo usuario
+      // Crear nuevo usuario (todos son admin por defecto)
       const newUser = await Users.create({
         name: createUserDto.name,
         lastName: createUserDto.lastName,
         email: createUserDto.email,
         phone: createUserDto.phone,
         password: hashedPassword,
-        roleId: userRole.id,
+        roleId: userRole ? userRole.id : null, // Rol opcional
+        isAdmin: true,
         isActive: true,
         isVerified: false,
       } as any);
@@ -113,6 +100,9 @@ export class AuthService {
       
       const accessToken = this.jwtService.sign(payload, { expiresIn: '24h' });
       
+      // Obtener permisos del usuario
+      const permissions = await this.permissionService.getUserPermissions(newUser.id);
+      
       return {
         message: "Usuario creado exitosamente.",
         accessToken,
@@ -122,13 +112,14 @@ export class AuthService {
           lastName: newUser.lastName,
           email: newUser.email,
           phone: newUser.phone,
-          role: userRole.slug,
+          role: userRole ? userRole.slug : 'admin',
+          isAdmin: newUser.isAdmin,
+          permissions: permissions || []
         }
       };
     }
 
   async me(authorization: string | undefined): Promise<any> {
-    console.log('[AUTH-SERVICE] me() called');
     
     try {
       if (!authorization || !authorization.startsWith('Bearer ')) {
@@ -137,7 +128,6 @@ export class AuthService {
       }
       
       const token = authorization.split(' ')[1];
-      console.log('[AUTH-SERVICE] Token extracted from header, verifying...');
       
       const decoded = this.jwtService.decode(token);
       
@@ -146,16 +136,10 @@ export class AuthService {
         throw new UnauthorizedException('Token inválido');
       }
       
-      console.log('[AUTH-SERVICE] Token decoded successfully:', {
-        id: decoded.id,
-        email: decoded.email,
-        name: decoded.name
-      });
-      
       const user = await Users.findOne({
         where: { email: decoded.email },
         attributes: { exclude: ['password'] },
-        include: [{ model: Role }]
+        include: [{ model: Role, as: 'role' }]
       });
 
       if (!user) {
@@ -163,6 +147,9 @@ export class AuthService {
         throw new UnauthorizedException('Usuario no encontrado');
       }
 
+      // Obtener permisos del usuario
+      const permissions = await this.permissionService.getUserPermissions(user.id);
+      
       const result = {
         id: user.id,
         name: user.name,
@@ -170,9 +157,10 @@ export class AuthService {
         email: user.email,
         phone: user.phone,
         role: user.role ? user.role.slug : null,
+        isAdmin: user.isAdmin,
+        permissions: permissions || []
       };
       
-      console.log('[AUTH-SERVICE] /me response:', result);
       
       return result;
     } catch (error) {
