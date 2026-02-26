@@ -130,7 +130,6 @@ export class SeedService {
         }));
         
         await RolePermission.bulkCreate(superadminPermissions);
-        console.log(`✅ ${allPermissions.length} permisos asignados al SuperAdmin`);
       }
 
       // Asignar TODOS los permisos al Admin
@@ -143,11 +142,7 @@ export class SeedService {
         }));
         
         await RolePermission.bulkCreate(adminPermissions);
-        console.log(`✅ ${allPermissions.length} permisos asignados al Admin`);
       }
-
-      // El rol Usuario no obtiene permisos por defecto (vacío)
-      console.log('✅ Permisos del Usuario (vacío por defecto)');
 
     } catch (error) {
       console.error('Error asignando permisos por defecto:', error);
@@ -157,19 +152,10 @@ export class SeedService {
 
   async seedAll() {
     try {
-      console.log('🌱 Iniciando seeders...');
-      
       const rolesResult = await this.seedRoles();
-      console.log('✅ Roles creados');
-      
       const usersResult = await this.seedUsers();
-      console.log('✅ Usuarios creados');
-
       await seedPermissions();
-      console.log('✅ Permisos creados');
-
       await this.assignDefaultPermissions();
-      console.log('✅ Permisos asignados a roles');
 
       return {
         message: 'All seeds executed successfully',

@@ -154,6 +154,7 @@ export class UsersService extends CrudService<Users> {
       email: user.email,
       password: user.password,
       isAdmin: user.isAdmin,
+      createdByAdminId: user.createdByAdminId,
       role: user.role ? user.role.slug : null
     };
   }

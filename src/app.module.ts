@@ -11,12 +11,11 @@ import { AuthModule } from './modules/auth/auth.module';
 import { SeedModule } from './modules/seeders/seeders.module';
 import { PermissionModule } from './modules/permission/permission.module';
 import { RoleModule } from './modules/role/role.module';
+import { KanbanModule } from './modules/kanban/kanban.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-    }),
+    ConfigModule.forRoot({ isGlobal: true }),
     DatabaseModule,
     PostModule,
     AiModule,
@@ -26,8 +25,7 @@ import { RoleModule } from './modules/role/role.module';
     SeedModule,
     PermissionModule,
     RoleModule,
-    
-    // AiModule,
+    KanbanModule,
   ],
   providers: [AiService],
 })
@@ -35,6 +33,6 @@ export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer
       .apply(DomainMiddleware)
-      .forRoutes('*'); // Se aplica a todas las rutas
+      .forRoutes('*');
   }
 }

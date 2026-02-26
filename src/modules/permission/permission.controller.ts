@@ -19,13 +19,13 @@ export class PermissionController {
   }
 
   @Get()
-  @Auth(ValidRoles.admin, ValidRoles.superadmin)
+  @Auth()
   findAll() {
     return this.permissionService.findAll();
   }
 
   @Get(':id')
-  @Auth(ValidRoles.admin, ValidRoles.superadmin)
+  @Auth()
   findOne(@Param('id') id: string) {
     return this.permissionService.findOne(+id);
   }
@@ -43,7 +43,7 @@ export class PermissionController {
   }
 
   @Post('assign-to-role')
-  @Auth(ValidRoles.admin, ValidRoles.superadmin)
+  @Auth()
   assignPermissionsToRole(@Body() assignPermissionsDto: AssignPermissionsDto, @GetUser() user: any) {
     return this.permissionService.assignPermissionsToRole(
       assignPermissionsDto.roleId,
@@ -53,13 +53,13 @@ export class PermissionController {
   }
 
   @Get('role/:roleId')
-  @Auth(ValidRoles.admin, ValidRoles.superadmin)
+  @Auth()
   getRolePermissions(@Param('roleId') roleId: string) {
     return this.permissionService.getRolePermissions(+roleId);
   }
 
   @Get('user/:userId')
-  @Auth(ValidRoles.admin, ValidRoles.superadmin)
+  @Auth()
   getUserPermissions(@Param('userId') userId: string) {
     return this.permissionService.getUserPermissions(+userId);
   }

@@ -15,8 +15,7 @@ export class UsersController {
     private readonly usersService: UsersService,
   ) {}
 
-  @Post()
-  @Auth(ValidRoles.admin, ValidRoles.superadmin)
+  @Post() @Auth()
   async create(@Body() createUserDto: CreateUserDto, @GetUser() user: any) {
     // Verificar que el usuario que crea es admin
     const adminUser = await this.usersService.findOne(user.id);
@@ -26,20 +25,17 @@ export class UsersController {
     return this.usersService.create(createUserDto, user.id);
   }
 
-  @Get('all')
-  @Auth(ValidRoles.admin, ValidRoles.superadmin)
+  @Get('all') @Auth()
   findAll(@GetUser() user: any) {
     return this.usersService.findAll(user.id);
   }
 
-  @Get('profile-with-roles')
-  @Auth(ValidRoles.admin, ValidRoles.superadmin)
+  @Get('profile-with-roles') @Auth()
   async getProfile(@GetUser() user: any) {
     return this.usersService.getUserProfile(user.id);
   }
 
-  @Post('roles/create')
-  @Auth(ValidRoles.admin, ValidRoles.superadmin)
+  @Post('roles/create') @Auth()
   async createCustomRole(@Body() roleData: any, @GetUser() user: any) {
     console.log('[UsersController] createCustomRole - User from @GetUser():', {
       id: user?.id,
@@ -50,20 +46,18 @@ export class UsersController {
     return this.usersService.createCustomRole(user.id, roleData);
   }
 
-  @Get('roles/my-roles')
-  @Auth(ValidRoles.admin, ValidRoles.superadmin)
+  @Get('roles/my-roles') @Auth()
   async getMyRoles(@GetUser() user: any) {
     return this.usersService.getUserCustomRoles(user.id);
   }
 
-  @Get('roles/available')
-  @Auth(ValidRoles.admin, ValidRoles.superadmin)
+  @Get('roles/available') @Auth()
   async getAvailableRoles() {
     return this.usersService.getAllAvailableRoles();
   }
 
   @Put('roles/:id')
-  @Auth(ValidRoles.admin, ValidRoles.superadmin)
+  @Auth()
   async updateCustomRole(
     @Param('id') id: string,
     @Body() roleData: any,
@@ -72,9 +66,8 @@ export class UsersController {
     return this.usersService.updateCustomRole(user.id, +id, roleData);
   }
 
-  @Delete('roles/:id')
-  @Auth(ValidRoles.admin, ValidRoles.superadmin)
-  async deleteCustomRole(
+  @Delete('roles/:id') @Auth()
+   async deleteCustomRole(
     @Param('id') id: string,
     @GetUser() user: any
   ) {
@@ -82,8 +75,7 @@ export class UsersController {
     return { message: 'Rol eliminado exitosamente' };
   }
 
-  @Get('')
-  @Auth(ValidRoles.superadmin)
+  @Get('')  @Auth(ValidRoles.superadmin) 
   async findAllQuerys(
     @Query(new ValidationPipe({ transform: true })) query: FindAllQuerysDto) {
     const { page = 0, pageSize = 10, ...filters } = query;
@@ -96,33 +88,23 @@ export class UsersController {
     return users;
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
+  @Get(':id') findOne(@Param('id') id: string) {
     return this.usersService.findOne(+id);
   }
 
-  @Put(':id')
-  @Auth(ValidRoles.admin, ValidRoles.superadmin)
-  update(
-    @Param('id') id: string, 
-    @Body() updateUserDto: UpdateUserDto,
-    @GetUser() user: any
-  ) {
+  @Put(':id') @Auth() update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto, @GetUser() user: any ) {
     // Si es admin, pasar su ID para verificar propiedad. Si es superadmin, no pasar ID (puede editar cualquiera)
     const adminId = user.role === 'admin' ? user.id : undefined;
     return this.usersService.updateUser(+id, updateUserDto, adminId);
   }
 
-  @Delete(':id')
-  @Auth(ValidRoles.admin, ValidRoles.superadmin)
-  remove(@Param('id') id: string, @GetUser() user: any) {
+  @Delete(':id') @Auth() remove(@Param('id') id: string, @GetUser() user: any) {
     // Si es admin, pasar su ID para verificar propiedad. Si es superadmin, no pasar ID (puede eliminar cualquiera)
     const adminId = user.role === 'admin' ? user.id : undefined;
     return this.usersService.deleteUser(+id, adminId);
   }
 
-  @Put(':id/change-password')
-  @Auth(ValidRoles.superadmin)
+  @Put(':id/change-password') @Auth(ValidRoles.superadmin)
   async changePassword(
     @Param('id') id: number,
     @Body() changePasswordDto: ChangePasswordDto
