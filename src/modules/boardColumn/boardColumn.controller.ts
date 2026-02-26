@@ -37,6 +37,13 @@ export class BoardColumnController {
     return this.boardColumnService.findByBoard(+boardId, tenantId)
   }
 
+  @Post('boards/:boardId/columns/generate-with-ai')
+  @Auth()
+  generateWithAI(@Param('boardId') boardId: string, @Body() dto: { prompt: string }, @GetUser() user: Users) {
+    const tenantId = this.resolveTenantId(user)
+    return this.boardColumnService.generateColumnsWithAI(+boardId, dto.prompt, tenantId)
+  }
+
   @Get('columns/:id')
   @Auth()
   findOne(@Param('id') id: string, @GetUser() user: Users) {

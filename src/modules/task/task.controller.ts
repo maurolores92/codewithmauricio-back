@@ -72,4 +72,11 @@ export class TaskController {
     const tenantId = this.resolveTenantId(user)
     return this.taskService.assign(+id, dto, tenantId)
   }
+
+  @Post('columns/:columnId/tasks/generate-with-ai')
+  @Auth()
+  generateWithAI(@Param('columnId') columnId: string, @Body() dto: { prompt: string }, @GetUser() user: Users) {
+    const tenantId = this.resolveTenantId(user)
+    return this.taskService.generateTasksWithAI(+columnId, dto.prompt, tenantId)
+  }
 }

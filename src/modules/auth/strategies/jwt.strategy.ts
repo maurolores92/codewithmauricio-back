@@ -22,21 +22,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(data: JwtPayload): Promise<any> {
-    console.log('[JWT-STRATEGY] validate() called with payload:', data);
     
     try {
       const user = await this.usersService.findOneByEmail(data.email);
-      console.log('[JWT-STRATEGY] User found from email:', {
-        id: user.id,
-        email: user.email,
-        isAdmin: user.isAdmin,
-        createdByAdminId: user.createdByAdminId,
-        role: user.role
-      });
-      
       return user;
     } catch (error) {
-      console.error('[JWT-STRATEGY] User not found or error:', error.message);
       throw new UnauthorizedException('User not found');
     }
   }

@@ -43,6 +43,13 @@ export class BoardController {
     return this.boardService.reorder(dto.boardIds, tenantId)
   }
 
+  @Post('generate-with-ai')
+  @Auth()
+  generateWithAI(@Body() dto: { prompt: string }, @GetUser() user: Users) {
+    const tenantId = this.resolveTenantId(user)
+    return this.boardService.generateBoardsWithAI(dto.prompt, tenantId)
+  }
+
   @Get(':id')
   @Auth()
   findOne(@Param('id') id: string, @GetUser() user: Users) {

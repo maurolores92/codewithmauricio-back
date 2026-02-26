@@ -5,9 +5,13 @@ import { BoardColumn } from '../boardColumn/boardColumn.model'
 import { Task } from '../task/task.model'
 import { BoardController } from './board.controller'
 import { BoardService } from './board.service'
+import { AiModule } from '../../ai/ai.module'
 
 @Module({
-  imports: [SequelizeModule.forFeature([Board, BoardColumn, Task])],
+  imports: [
+    SequelizeModule.forFeature([Board, BoardColumn, Task]),
+    AiModule
+  ],
   controllers: [BoardController],
   providers: [BoardService],
   exports: [SequelizeModule, BoardService]
