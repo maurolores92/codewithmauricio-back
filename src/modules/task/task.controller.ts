@@ -49,7 +49,7 @@ export class TaskController {
   @Auth()
   update(@Param('id') id: string, @Body() dto: UpdateTaskDto, @GetUser() user: Users) {
     const tenantId = this.resolveTenantId(user)
-    return this.taskService.update(+id, dto, tenantId)
+    return this.taskService.update(+id, dto, tenantId, user.id)
   }
 
   @Delete('tasks/:id')
@@ -70,7 +70,7 @@ export class TaskController {
   @Auth()
   assign(@Param('id') id: string, @Body() dto: AssignTaskDto, @GetUser() user: Users) {
     const tenantId = this.resolveTenantId(user)
-    return this.taskService.assign(+id, dto, tenantId)
+    return this.taskService.assign(+id, dto, tenantId, user.id)
   }
 
   @Post('columns/:columnId/tasks/generate-with-ai')

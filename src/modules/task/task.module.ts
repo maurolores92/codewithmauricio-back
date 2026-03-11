@@ -11,12 +11,14 @@ import { TaskCommentMention } from './comments/task-comment-mention.model'
 import { TaskCommentsService } from './comments/task-comments.service'
 import { TaskCommentsController } from './comments/task-comments.controller'
 import { WebsocketModule } from 'src/common/socket/websocket.module'
+import { NotificationsModule } from '../notifications/notifications.module'
 
 @Module({
   imports: [
     SequelizeModule.forFeature([Task, BoardColumn, Users, TaskComment, TaskCommentMention]),
     AiModule,
     WebsocketModule,
+    NotificationsModule,
   ],
   controllers: [TaskController, TaskCommentsController],
   providers: [TaskService, TaskCommentsService],

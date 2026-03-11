@@ -8,6 +8,7 @@ import { AssignTaskDto } from './dto/assign-task.dto'
 import { BoardColumn } from '../boardColumn/boardColumn.model'
 import { Users } from '../users/users.model'
 import { AiService } from '../../ai/ai.service'
+import { NotificationsService } from '../notifications/notifications.service'
 
 @Injectable()
 export class TaskService {
@@ -15,8 +16,64 @@ export class TaskService {
     @InjectModel(Task) private readonly taskModel: typeof Task,
     @InjectModel(BoardColumn) private readonly boardColumnModel: typeof BoardColumn,
     @InjectModel(Users) private readonly usersModel: typeof Users,
-    private readonly aiService: AiService
+    private readonly aiService: AiService,
+    private readonly notificationsService: NotificationsService,
   ) {}
+
+  private async validateAssigneeInTenant(assignedUserId: number, tenantId: number): Promise<void> {
+    const assignee = await this.usersModel.findByPk(assignedUserId)
+    if (!assignee) {
+      throw new NotFoundException('Usuario asignado no encontrado')
+    }
+
+    const isSameTenant = assignee.isAdmin
+      ? assignee.id === tenantId
+      : assignee.createdByAdminId === tenantId
+
+    if (!isSameTenant) {
+      throw new NotFoundException('Usuario asignado no encontrado')
+    }
+  }
+
+  private async notifyAssignmentChange(
+    task: Task,
+    tenantId: number,
+    previousAssignedUserId?: number,
+    nextAssignedUserId?: number,
+    actorUserId?: number,
+  ): Promise<void> {
+    if (nextAssignedUserId && nextAssignedUserId !== previousAssignedUserId) {
+      await this.notificationsService.createForUser({
+        userId: nextAssignedUserId,
+        tenantId,
+        type: 'task_assigned',
+        title: 'Tarea asignada',
+        message: `Ahora eres responsable de "${task.name}"`,
+        createdByUserId: actorUserId,
+        data: {
+          taskId: task.id,
+          taskName: task.name,
+          boardColumnId: task.boardColumnId,
+        },
+      })
+    }
+
+    if (previousAssignedUserId && previousAssignedUserId !== nextAssignedUserId) {
+      await this.notificationsService.createForUser({
+        userId: previousAssignedUserId,
+        tenantId,
+        type: 'task_unassigned',
+        title: 'Tarea desasignada',
+        message: `Ya no tienes asignada la tarea "${task.name}"`,
+        createdByUserId: actorUserId,
+        data: {
+          taskId: task.id,
+          taskName: task.name,
+          boardColumnId: task.boardColumnId,
+        },
+      })
+    }
+  }
 
   async create(dto: CreateTaskDto, tenantId: number, createdBy: number): Promise<Task> {
     const column = await this.boardColumnModel.findByPk(dto.boardColumnId)
@@ -33,6 +90,23 @@ export class TaskService {
         }
       ]
     })
+
+    if (dto.assignedUserId && dto.assignedUserId !== createdBy) {
+      await this.notificationsService.createForUser({
+        userId: dto.assignedUserId,
+        tenantId,
+        type: 'task_assigned',
+        title: 'Nueva tarea asignada',
+        message: `Te asignaron la tarea "${task.name}"`,
+        createdByUserId: createdBy,
+        data: {
+          taskId: task.id,
+          taskName: task.name,
+          boardColumnId: task.boardColumnId,
+        },
+      })
+    }
+
     return task
   }
 
@@ -73,8 +147,15 @@ export class TaskService {
     return task
   }
 
-  async update(id: number, dto: UpdateTaskDto, tenantId: number): Promise<Task> {
+  async update(id: number, dto: UpdateTaskDto, tenantId: number, updatedByUserId?: number): Promise<Task> {
     const task = await this.findOne(id, tenantId)
+    const previousAssignedUserId = task.assignedUserId
+
+    const hasAssignedUserId = Object.prototype.hasOwnProperty.call(dto, 'assignedUserId')
+    if (hasAssignedUserId && dto.assignedUserId) {
+      await this.validateAssigneeInTenant(dto.assignedUserId, tenantId)
+    }
+
     await task.update(dto as any)
     await task.reload({
       include: [
@@ -85,6 +166,11 @@ export class TaskService {
         }
       ]
     })
+
+    if (hasAssignedUserId) {
+      await this.notifyAssignmentChange(task, tenantId, previousAssignedUserId, task.assignedUserId, updatedByUserId)
+    }
+
     return task
   }
 
@@ -112,22 +198,12 @@ export class TaskService {
     return task
   }
 
-  async assign(id: number, dto: AssignTaskDto, tenantId: number): Promise<Task> {
+  async assign(id: number, dto: AssignTaskDto, tenantId: number, assignedByUserId?: number): Promise<Task> {
     const task = await this.findOne(id, tenantId)
+    const previousAssignedUserId = task.assignedUserId
 
     if (dto.assignedUserId) {
-      const assignee = await this.usersModel.findByPk(dto.assignedUserId)
-      if (!assignee) {
-        throw new NotFoundException('Usuario asignado no encontrado')
-      }
-
-      const isSameTenant = assignee.isAdmin
-        ? assignee.id === tenantId
-        : assignee.createdByAdminId === tenantId
-
-      if (!isSameTenant) {
-        throw new NotFoundException('Usuario asignado no encontrado')
-      }
+      await this.validateAssigneeInTenant(dto.assignedUserId, tenantId)
     }
 
     await task.update({ assignedUserId: dto.assignedUserId } as any)
@@ -140,6 +216,9 @@ export class TaskService {
         }
       ]
     })
+
+    await this.notifyAssignmentChange(task, tenantId, previousAssignedUserId, dto.assignedUserId, assignedByUserId)
+
     return task
   }
 

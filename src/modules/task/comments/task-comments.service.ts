@@ -9,6 +9,7 @@ import { TaskCommentMention } from './task-comment-mention.model'
 import { ListTaskMentionsDto } from './dto/list-task-mentions.dto'
 import { WebsocketService } from 'src/common/socket/websocket.service'
 import { WS_EVENTS } from 'src/websocket/websocket.events'
+import { NotificationsService } from '../../notifications/notifications.service'
 
 export type TaskCommentTree = {
   id: number
@@ -74,6 +75,7 @@ export class TaskCommentsService {
     @InjectModel(TaskCommentMention) private readonly taskCommentMentionModel: typeof TaskCommentMention,
     @InjectModel(Users) private readonly usersModel: typeof Users,
     private readonly websocketService: WebsocketService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   private isUserInTenant(user: Users, tenantId: number): boolean {
@@ -104,6 +106,11 @@ export class TaskCommentsService {
     mentionedUserIds: number[] | undefined,
     tenantId: number,
     mentionedByUserId: number,
+    notificationData?: {
+      taskId?: number
+      taskName?: string
+      commentContent?: string
+    },
   ): Promise<void> {
     if (!mentionedUserIds) return
 
@@ -143,6 +150,22 @@ export class TaskCommentsService {
           commentId,
           mentionedByUserId,
           createdAt: mention.createdAt,
+        })
+
+        await this.notificationsService.createForUser({
+          userId: mention.mentionedUserId,
+          tenantId,
+          type: 'mention',
+          title: 'Te mencionaron en un comentario',
+          message: notificationData?.commentContent || 'Revisa la actividad reciente de tu tarea en Kanban.',
+          createdByUserId: mentionedByUserId,
+          data: {
+            mentionId: mention.id,
+            commentId,
+            taskId: notificationData?.taskId,
+            taskName: notificationData?.taskName,
+            commentContent: notificationData?.commentContent,
+          },
         })
       }
     }
@@ -188,7 +211,7 @@ export class TaskCommentsService {
   }
 
   async createComment(taskId: number, dto: CreateTaskCommentDto, tenantId: number, createdBy: number): Promise<TaskComment> {
-    await this.ensureTaskInTenant(taskId, tenantId)
+    const task = await this.ensureTaskInTenant(taskId, tenantId)
 
     if (dto.parentCommentId) {
       const parentComment = await this.findCommentById(dto.parentCommentId, tenantId)
@@ -205,7 +228,11 @@ export class TaskCommentsService {
       createdBy,
     } as any)
 
-    await this.syncMentions(comment.id, dto.mentionedUserIds, tenantId, createdBy)
+    await this.syncMentions(comment.id, dto.mentionedUserIds, tenantId, createdBy, {
+      taskId,
+      taskName: task.name,
+      commentContent: dto.content.trim(),
+    })
 
     await comment.reload({
       include: this.getCommentIncludes(),
@@ -256,7 +283,13 @@ export class TaskCommentsService {
     }
 
     await comment.update({ content: dto.content.trim() } as any)
-    await this.syncMentions(comment.id, dto.mentionedUserIds, tenantId, userId)
+
+    const task = await this.ensureTaskInTenant(comment.taskId, tenantId)
+    await this.syncMentions(comment.id, dto.mentionedUserIds, tenantId, userId, {
+      taskId: comment.taskId,
+      taskName: task.name,
+      commentContent: dto.content.trim(),
+    })
     await comment.reload({
       include: this.getCommentIncludes(),
     })
