@@ -9,7 +9,7 @@ export class DomainMiddleware implements NestMiddleware {
       'https://maurodev.online',
       'https://mauriciolores.com.ar',
       'https://codewithmauricio.tech',
-      'http://localhost:4321', // Para desarrollo local
+      'http://localhost:3000', // Para desarrollo local
     ];
 
     const origin = req.headers.origin;

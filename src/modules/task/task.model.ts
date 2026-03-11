@@ -1,6 +1,7 @@
-import { AutoIncrement, BelongsTo, Column, DataType, ForeignKey, Model, PrimaryKey, Table } from "sequelize-typescript";
+import { AutoIncrement, BelongsTo, Column, DataType, ForeignKey, HasMany, Model, PrimaryKey, Table } from "sequelize-typescript";
 import { BoardColumn } from "../boardColumn/boardColumn.model";
 import { Users } from "../users/users.model";
+import { TaskComment } from './comments/task-comment.model'
 
 @Table({timestamps: true})
 export class Task extends Model {
@@ -45,5 +46,8 @@ export class Task extends Model {
 
     @BelongsTo(() => Users, { foreignKey: 'createdBy', as: 'creator' })
     declare creator?: Users
+
+    @HasMany(() => TaskComment, { foreignKey: 'taskId', as: 'comments' })
+    declare comments?: TaskComment[]
 
 }
