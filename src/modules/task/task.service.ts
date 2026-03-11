@@ -42,6 +42,9 @@ export class TaskService {
     nextAssignedUserId?: number,
     actorUserId?: number,
   ): Promise<void> {
+    const column = await this.boardColumnModel.findByPk(task.boardColumnId)
+    const boardId = column?.boardId
+
     if (nextAssignedUserId && nextAssignedUserId !== previousAssignedUserId) {
       await this.notificationsService.createForUser({
         userId: nextAssignedUserId,
@@ -53,6 +56,7 @@ export class TaskService {
         data: {
           taskId: task.id,
           taskName: task.name,
+          boardId,
           boardColumnId: task.boardColumnId,
         },
       })
@@ -69,6 +73,7 @@ export class TaskService {
         data: {
           taskId: task.id,
           taskName: task.name,
+          boardId,
           boardColumnId: task.boardColumnId,
         },
       })
@@ -92,6 +97,7 @@ export class TaskService {
     })
 
     if (dto.assignedUserId && dto.assignedUserId !== createdBy) {
+      const boardId = column.boardId
       await this.notificationsService.createForUser({
         userId: dto.assignedUserId,
         tenantId,
@@ -102,6 +108,7 @@ export class TaskService {
         data: {
           taskId: task.id,
           taskName: task.name,
+          boardId,
           boardColumnId: task.boardColumnId,
         },
       })

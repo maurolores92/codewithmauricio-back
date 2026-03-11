@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/sequelize'
 import { Task } from '../task.model'
 import { TaskComment } from './task-comment.model'
 import { Users } from '../../users/users.model'
+import { BoardColumn } from '../../boardColumn/boardColumn.model'
 import { CreateTaskCommentDto } from './dto/create-task-comment.dto'
 import { UpdateTaskCommentDto } from './dto/update-task-comment.dto'
 import { TaskCommentMention } from './task-comment-mention.model'
@@ -20,6 +21,8 @@ export type TaskCommentTree = {
   createdBy: number
   createdAt?: Date
   updatedAt?: Date
+  isDeleted?: boolean
+  deletedAt?: Date
   author?: {
     id: number
     name: string
@@ -73,6 +76,7 @@ export class TaskCommentsService {
     @InjectModel(Task) private readonly taskModel: typeof Task,
     @InjectModel(TaskComment) private readonly taskCommentModel: typeof TaskComment,
     @InjectModel(TaskCommentMention) private readonly taskCommentMentionModel: typeof TaskCommentMention,
+    @InjectModel(BoardColumn) private readonly boardColumnModel: typeof BoardColumn,
     @InjectModel(Users) private readonly usersModel: typeof Users,
     private readonly websocketService: WebsocketService,
     private readonly notificationsService: NotificationsService,
@@ -110,6 +114,7 @@ export class TaskCommentsService {
       taskId?: number
       taskName?: string
       commentContent?: string
+      boardId?: number
     },
   ): Promise<void> {
     if (!mentionedUserIds) return
@@ -165,6 +170,7 @@ export class TaskCommentsService {
             taskId: notificationData?.taskId,
             taskName: notificationData?.taskName,
             commentContent: notificationData?.commentContent,
+            boardId: notificationData?.boardId,
           },
         })
       }
@@ -192,6 +198,12 @@ export class TaskCommentsService {
         ],
       },
     ]
+  }
+
+  private async resolveBoardIdForTask(task: Task): Promise<number | undefined> {
+    const column = await this.boardColumnModel.findByPk(task.boardColumnId)
+
+    return column?.boardId
   }
 
   private async ensureTaskInTenant(taskId: number, tenantId: number): Promise<Task> {
@@ -232,6 +244,7 @@ export class TaskCommentsService {
       taskId,
       taskName: task.name,
       commentContent: dto.content.trim(),
+      boardId: await this.resolveBoardIdForTask(task),
     })
 
     await comment.reload({
@@ -258,7 +271,11 @@ export class TaskCommentsService {
     const commentsMap = new Map<number, TaskCommentTree>()
     comments.forEach(comment => {
       const raw = comment.toJSON() as TaskCommentTree
-      commentsMap.set(comment.id, { ...raw, replies: [] })
+      commentsMap.set(comment.id, {
+        ...raw,
+        content: raw.isDeleted ? 'Comentario eliminado' : raw.content,
+        replies: [],
+      })
     })
 
     const rootComments: TaskCommentTree[] = []
@@ -282,6 +299,10 @@ export class TaskCommentsService {
       throw new ForbiddenException('No tienes permisos para editar este comentario')
     }
 
+    if (comment.isDeleted) {
+      throw new BadRequestException('No puedes editar un comentario eliminado')
+    }
+
     await comment.update({ content: dto.content.trim() } as any)
 
     const task = await this.ensureTaskInTenant(comment.taskId, tenantId)
@@ -289,6 +310,7 @@ export class TaskCommentsService {
       taskId: comment.taskId,
       taskName: task.name,
       commentContent: dto.content.trim(),
+      boardId: await this.resolveBoardIdForTask(task),
     })
     await comment.reload({
       include: this.getCommentIncludes(),
@@ -303,8 +325,11 @@ export class TaskCommentsService {
       throw new ForbiddenException('No tienes permisos para eliminar este comentario')
     }
 
-    await this.taskCommentModel.destroy({ where: { parentCommentId: commentId, tenantId } })
-    await comment.destroy()
+    if (comment.isDeleted) {
+      return
+    }
+
+    await comment.update({ isDeleted: true, deletedAt: new Date(), deletedBy: userId } as any)
   }
 
   async findMyMentions(userId: number, tenantId: number, dto: ListTaskMentionsDto): Promise<MyMentionItem[]> {

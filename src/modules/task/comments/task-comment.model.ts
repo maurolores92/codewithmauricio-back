@@ -31,6 +31,12 @@ export class TaskComment extends Model {
   @Column(DataType.TEXT)
   declare content: string
 
+  @Column({ type: DataType.BOOLEAN, defaultValue: false })
+  declare isDeleted: boolean
+
+  @Column({ type: DataType.DATE, allowNull: true })
+  declare deletedAt?: Date
+
   @ForeignKey(() => Users)
   @Column(DataType.INTEGER)
   declare tenantId: number
@@ -42,8 +48,15 @@ export class TaskComment extends Model {
   @Column(DataType.INTEGER)
   declare createdBy: number
 
+  @ForeignKey(() => Users)
+  @Column({ type: DataType.INTEGER, allowNull: true })
+  declare deletedBy?: number
+
   @BelongsTo(() => Users, { foreignKey: 'createdBy', as: 'author' })
   declare author?: Users
+
+  @BelongsTo(() => Users, { foreignKey: 'deletedBy', as: 'deletedByUser' })
+  declare deletedByUser?: Users
 
   @HasMany(() => TaskCommentMention, { foreignKey: 'commentId', as: 'mentions' })
   declare mentions?: TaskCommentMention[]
