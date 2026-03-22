@@ -27,6 +27,11 @@ async function bootstrap() {
     'http://localhost:4321', // para desarrollo
   ];
 
+//   app.enableCors({
+//   origin: true,
+//   credentials: true,
+// });
+
   app.enableCors({
     origin: (origin, callback) => {
       // Permite requests sin origin (ej: Postman, curl)
