@@ -85,7 +85,7 @@ npm install
 Crear un archivo `.env`:
 
 ```env
-PORT=3000
+PORT=5002
 
 DATABASE_HOST=localhost
 DATABASE_PORT=5432
